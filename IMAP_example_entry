@@ -1,0 +1,36 @@
+
+[Account uberspace_admin]
+localrepository = uberspace_admin_local
+remoterepository = uberspace_admin_remote
+autorefresh = 0
+status_backend = sqlite
+
+[Repository uberspace_admin_local]
+type = Maildir
+localfolders = ~/Mail/uberspace
+sep = .
+restoreatime = no
+maxconnections = 5
+nametrans = lambda folder: re.sub('spam', '[Gmail].Spam',
+                           re.sub('drafts', '[Gmail].Drafts',
+                           re.sub('sent', '[Gmail].Sent Mail',
+                           re.sub('flagged', '[Gmail].Starred',
+                           re.sub('trash', '[Gmail].Trash',
+                           re.sub('archive', '[Gmail].All Mail', folder))))))
+
+[Repository uberspace_admin_remote]
+type = IMAP
+ssl = yes
+sslcacertfile = /etc/ssl/certs/ca-certificates.crt
+remoteuser = admin@high5.alioth.uberspace.de
+remotepass = g6aYCHLZuH
+remotehost = mail.alioth.uberspace.de
+realdelete = no
+maxconnections = 5
+folderfilter = lambda folder: "important" not in folder.lower()
+nametrans = lambda folder: re.sub('.*Spam$', 'spam', 
+			   re.sub('.*Drafts$', 'drafts', 
+			   re.sub('.*Sent Mail$', 'sent', 
+			   re.sub('.*Starred$', 'flagged', 
+			   re.sub('.*Trash$', 'trash', 
+			   re.sub('.*All Mail$', 'archive', folder))))))

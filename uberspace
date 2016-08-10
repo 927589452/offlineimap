@@ -1,0 +1,43 @@
+[general]
+metadata = ~/.offlineimap
+accounts = firecat53
+maxsyncaccounts = 2
+ui = quiet
+fsync = false
+
+ignore-readonly = no
+
+[Account firecat53]
+localrepository = firecat53_local
+remoterepository = firecat53_remote
+autorefresh = 0
+status_backend = sqlite
+
+[Repository firecat53_local]
+type = Maildir
+localfolders = ~/mail/primaryaccount
+sep = .
+restoreatime = no
+maxconnections = 5
+nametrans = lambda folder: re.sub('spam', '[Gmail].Spam',
+                           re.sub('drafts', '[Gmail].Drafts',
+                           re.sub('sent', '[Gmail].Sent Mail',
+                           re.sub('flagged', '[Gmail].Starred',
+                           re.sub('trash', '[Gmail].Trash',
+                           re.sub('archive', '[Gmail].All Mail', folder))))))
+
+[Repository firecat53_remote]
+type = Gmail
+ssl = yes
+sslcacertfile = /etc/ssl/certs/ca-certificates.crt
+remoteuser = primaryaccount@gmail.com
+remotepass = password
+realdelete = no
+maxconnections = 5
+folderfilter = lambda folder: "important" not in folder.lower()
+nametrans = lambda folder: re.sub('.*Spam$', 'spam', 
+			   re.sub('.*Drafts$', 'drafts', 
+			   re.sub('.*Sent Mail$', 'sent', 
+			   re.sub('.*Starred$', 'flagged', 
+			   re.sub('.*Trash$', 'trash', 
+			   re.sub('.*All Mail$', 'archive', folder))))))
