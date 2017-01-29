@@ -33,6 +33,7 @@ from offlineimap.utils.distro import get_os_sslcertfile, get_os_sslcertfile_sear
 
 class IMAPRepository(BaseRepository):
     def __init__(self, reposname, account):
+        self.idlefolders = None
         BaseRepository.__init__(self, reposname, account)
         # self.ui is being set by the BaseRepository
         self._host = None
@@ -95,15 +96,14 @@ class IMAPRepository(BaseRepository):
 
     def getholdconnectionopen(self):
         if self.getidlefolders():
-            return 1
+            return True
         return self.getconfboolean("holdconnectionopen", False)
 
     def getkeepalive(self):
         num = self.getconfint("keepalive", 0)
         if num == 0 and self.getidlefolders():
             return 29*60
-        else:
-            return num
+        return num
 
     def getsep(self):
         """Return the folder separator for the IMAP repository
@@ -309,36 +309,40 @@ class IMAPRepository(BaseRepository):
         refresh_token = self.getconf('oauth2_refresh_token', None)
         if refresh_token is None:
             refresh_token = self.localeval.eval(
-                self.getconf('oauth2_refresh_token_eval',
-                             "lambda x: None")
-                )(self.account.getname())
+                self.getconf('oauth2_refresh_token_eval', "None")
+            )
+            if refresh_token is not None:
+                refresh_token = refresh_token.strip("\n")
         return refresh_token
 
     def getoauth2_access_token(self):
         access_token = self.getconf('oauth2_access_token', None)
         if access_token is None:
             access_token = self.localeval.eval(
-                self.getconf('oauth2_access_token_eval',
-                             "lambda x: None")
-                )(self.account.getname())
+                self.getconf('oauth2_access_token_eval', "None")
+            )
+            if access_token is not None:
+                access_token = access_token.strip("\n")
         return access_token
 
     def getoauth2_client_id(self):
         client_id = self.getconf('oauth2_client_id', None)
         if client_id is None:
             client_id = self.localeval.eval(
-                self.getconf('oauth2_client_id_eval',
-                             "lambda x: None")
-                )(self.account.getname())
+                self.getconf('oauth2_client_id_eval', "None")
+            )
+            if client_id is not None:
+                client_id = client_id.strip("\n")
         return client_id
 
     def getoauth2_client_secret(self):
         client_secret = self.getconf('oauth2_client_secret', None)
         if client_secret is None:
             client_secret = self.localeval.eval(
-                self.getconf('oauth2_client_secret_eval',
-                             "lambda x: None")
-                )(self.account.getname())
+                self.getconf('oauth2_client_secret_eval', "None")
+            )
+            if client_secret is not None:
+                client_secret = client_secret.strip("\n")
         return client_secret
 
     def getpreauthtunnel(self):
@@ -354,7 +358,11 @@ class IMAPRepository(BaseRepository):
         return self.getconfboolean('decodefoldernames', False)
 
     def getidlefolders(self):
-        return self.localeval.eval(self.getconf('idlefolders', '[]'))
+        if self.idlefolders is None:
+            self.idlefolders = self.localeval.eval(
+                self.getconf('idlefolders', '[]')
+            )
+        return self.idlefolders
 
     def getmaxconnections(self):
         num1 = len(self.getidlefolders())
@@ -446,17 +454,29 @@ class IMAPRepository(BaseRepository):
         listfunction = imapobj.list
         if self.getconfboolean('subscribedonly', False):
             listfunction = imapobj.lsub
+
         try:
-            listresult = listfunction(directory=self.imapserver.reference)[1]
+            result, listresult = listfunction(directory=self.imapserver.reference)
+            if result != 'OK':
+                raise OfflineImapError("Could not list the folders for"
+                        " repository %s. Server responded: %s"%
+                        (self.name, self, str(listresult)),
+                    OfflineImapError.ERROR.FOLDER)
         finally:
             self.imapserver.releaseconnection(imapobj)
+
         for s in listresult:
             if s == None or \
                    (isinstance(s, str) and s == ''):
                 # Bug in imaplib: empty strings in results from
                 # literals. TODO: still relevant?
                 continue
-            flags, delim, name = imaputil.imapsplit(s)
+            try:
+                flags, delim, name = imaputil.imapsplit(s)
+            except ValueError:
+                self.ui.error(
+                    "could not correctly parse server response; got: %s"% s)
+                raise
             flaglist = [x.lower() for x in imaputil.flagsplit(flags)]
             if '\\noselect' in flaglist:
                 continue

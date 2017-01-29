@@ -18,10 +18,9 @@
 import random
 import binascii
 import re
-import os
 import time
-import six
 from sys import exc_info
+import six
 
 from .Base import BaseFolder
 from offlineimap import imaputil, imaplibutil, emailutil, OfflineImapError
@@ -48,6 +47,7 @@ class IMAPFolder(BaseFolder):
         name = imaputil.dequote(name)
         self.sep = imapserver.delim
         super(IMAPFolder, self).__init__(name, repository)
+        self.idle_mode = False
         self.expunge = repository.getexpunge()
         self.root = None # imapserver.root
         self.imapserver = imapserver
@@ -55,12 +55,17 @@ class IMAPFolder(BaseFolder):
         # self.ui is set in BaseFolder.
         self.imap_query = ['BODY.PEEK[]']
 
+        # number of times to retry fetching messages
+        self.retrycount = self.repository.getconfint('retrycount', 2)
+
         fh_conf = self.repository.account.getconf('filterheaders', '')
         self.filterheaders = [h for h in re.split(r'\s*,\s*', fh_conf) if h]
 
         # self.copy_ignoreUIDs is used by BaseFolder.
         self.copy_ignoreUIDs = repository.get_copy_ignore_UIDs(
             self.getvisiblename())
+        if self.repository.getidlefolders():
+            self.idle_mode = True
 
 
     def __selectro(self, imapobj, force=False):
@@ -79,6 +84,15 @@ class IMAPFolder(BaseFolder):
 
     # Interface from BaseFolder
     def suggeststhreads(self):
+        singlethreadperfolder_default = False
+        if self.idle_mode is True:
+            singlethreadperfolder_default = True
+
+        onethread = self.config.getdefaultboolean(
+            "Repository %s"% self.repository.getname(),
+            "singlethreadperfolder", singlethreadperfolder_default)
+        if onethread is True:
+            return False
         return not globals.options.singlethreading
 
     # Interface from BaseFolder
@@ -244,8 +258,11 @@ class IMAPFolder(BaseFolder):
 
             # Get the flags and UIDs for these. single-quotes prevent
             # imaplib2 from quoting the sequence.
-            res_type, response = imapobj.fetch("'%s'"%
-                msgsToFetch, '(FLAGS UID INTERNALDATE)')
+            fetch_msg = "'%s'"% msgsToFetch
+            self.ui.debug('imap', "calling imaplib2 fetch command: %s %s"%
+                (fetch_msg, '(FLAGS UID INTERNALDATE)'))
+            res_type, response = imapobj.fetch(
+                fetch_msg, '(FLAGS UID INTERNALDATE)')
             if res_type != 'OK':
                 raise OfflineImapError("FETCHING UIDs in folder [%s]%s failed. "
                     "Server responded '[%s] %s'"% (self.getrepository(), self,
@@ -256,11 +273,11 @@ class IMAPFolder(BaseFolder):
         for messagestr in response:
             # Looks like: '1 (FLAGS (\\Seen Old) UID 4807)' or None if no msg.
             # Discard initial message number.
-            if messagestr == None:
+            if messagestr is None:
                 continue
             messagestr = messagestr.split(' ', 1)[1]
             options = imaputil.flags2hash(messagestr)
-            if not 'UID' in options:
+            if 'UID' not in options:
                 self.ui.warn('No UID in message with options %s'%
                     str(options), minor=1)
             else:
@@ -291,7 +308,7 @@ class IMAPFolder(BaseFolder):
                   this UID could be found.
         """
 
-        data = self._fetch_from_imap(str(uid), 2)
+        data = self._fetch_from_imap(str(uid), self.retrycount)
 
         # Data looks now e.g.
         # [('320 (UID 17061 BODY[] {2565}','msgbody....')]
@@ -722,12 +739,15 @@ class IMAPFolder(BaseFolder):
                         severity = OfflineImapError.ERROR.MESSAGE
                         raise OfflineImapError(message,
                             OfflineImapError.ERROR.MESSAGE)
+                    self.ui.error("%s. While fetching msg %r in folder %r."
+                        " Query: %s Retrying (%d/%d)"% (
+                            e, uids, self.name, query,
+                            retry_num - fails_left, retry_num
+                            )
+                        )
                     # Release dropped connection, and get a new one.
                     self.imapserver.releaseconnection(imapobj, True)
                     imapobj = self.imapserver.acquireconnection()
-                    self.ui.error("%s. While fetching msg %r in folder %r."
-                        " Retrying (%d/%d)"%
-                        (e, uids, self.name, retry_num - fails_left, retry_num))
         finally:
              # The imapobj here might be different than the one created before
              # the ``try`` clause. So please avoid transforming this to a nice
@@ -740,13 +760,15 @@ class IMAPFolder(BaseFolder):
         # exactly one response.
         if res_type == 'OK':
             data = [res for res in data if not isinstance(res, str)]
-        # Could not fetch message.
+
+        # Could not fetch message.  Note: it is allowed by rfc3501 to return any
+        # data for the UID FETCH command.
         if data == [None] or res_type != 'OK' or len(data) != 1:
             severity = OfflineImapError.ERROR.MESSAGE
             reason = "IMAP server '%s' failed to fetch messages UID '%s'."\
-                "Server responded: %s %s"% (self.getrepository(), uids,
+                " Server responded: %s %s"% (self.getrepository(), uids,
                                              res_type, data)
-            if data == [None]:
+            if data == [None] or len(data) < 1:
                 # IMAP server did not find a message with this UID.
                 reason = "IMAP server '%s' does not have a message "\
                     "with UID '%s'"% (self.getrepository(), uids)
@@ -829,19 +851,22 @@ class IMAPFolder(BaseFolder):
             except imapobj.readonly:
                 self.ui.flagstoreadonly(self, uidlist, flags)
                 return
-            r = imapobj.uid('store',
+            response = imapobj.uid('store',
                 imaputil.uid_sequence(uidlist), operation + 'FLAGS',
                     imaputil.flagsmaildir2imap(flags))
-            assert r[0] == 'OK', 'Error with store: ' + '. '.join(r[1])
-            r = r[1]
+            if response[0] != 'OK':
+                raise OfflineImapError(
+                    'Error with store: %s'% '. '.join(response[1]),
+                    OfflineImapError.ERROR.MESSAGE)
+            response = response[1]
         finally:
             self.imapserver.releaseconnection(imapobj)
         # Some IMAP servers do not always return a result.  Therefore,
         # only update the ones that it talks about, and manually fix
         # the others.
         needupdate = list(uidlist)
-        for result in r:
-            if result == None:
+        for result in response:
+            if result is None:
                 # Compensate for servers that don't return anything from
                 # STORE.
                 continue

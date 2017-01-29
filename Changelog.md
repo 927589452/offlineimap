@@ -15,6 +15,336 @@ Note to mainainers:
 * The following excerpt is only usefull when rendered in the website.
 {:toc}
 
+### OfflineIMAP v7.0.13 (2017-01-27)
+
+#### Notes
+
+Here is a small release with some new features. IMAP servers are better supported.
+
+The release cycle was improved. Now, we include a new freeze time before
+important releases.
+
+#### Authors
+
+- Nicolas Sebrecht (8)
+- lkcl (2)
+- Chris Smart (1)
+
+#### Features
+
+- init: register SIGABRT and handle as per SIGUSR2. [Chris Smart]
+- add documentation about SIGABRT. [Nicolas Sebrecht]
+- learn repository retrycount configuration option. [lkcl]
+- learn authproxy configuration option. [lkcl]
+
+#### Fixes
+
+- folder: IMAP: add missing whitespace in error message. [Nicolas Sebrecht]
+- repository: IMAP: correctly check the response while listing remote folders. [Nicolas Sebrecht]
+- release.sh: correctly sort releases to compute latest stable and rc. [Nicolas Sebrecht]
+
+#### Changes
+
+- manual: KNOWN ISSUES: add documentation about the deletions. [Nicolas Sebrecht]
+- folder: IMAP: improve error message when Dovecot returns any data for UID FETCH. [Nicolas Sebrecht]
+- MAINTAINERS: add new official testers. [Nicolas Sebrecht]
+
+
+
+### OfflineIMAP v7.0.12 (2016-11-30)
+
+#### Notes
+
+Quick small release to fix v7.0.11 for the users of nametrans.
+
+#### Authors
+
+- Abdo Roig-Maranges (1)
+- Darshit Shah (1)
+- Nicolas Sebrecht (1)
+
+#### Features
+
+- Enable environment variable expansion on Repository.localfolders. [Darshit Shah]
+
+#### Fixes
+
+- repository: Base: fix typo in folder variable name. [Abdo Roig-Maranges]
+- MAINTAINERS: minor: fix rendering. [Nicolas Sebrecht]
+
+
+
+### OfflineIMAP v7.0.11 (2016-11-30)
+
+#### Notes
+
+Very small release to fix a regression about structure comparison in v7.0.10.
+
+#### Authors
+
+- Nicolas Sebrecht (2)
+
+#### Fixes
+
+- repository: Base: fix folder structure comparison. [Nicolas Sebrecht]
+
+#### Changes
+
+- MAINTAINERS: add all the contributors. [Nicolas Sebrecht]
+
+
+
+### OfflineIMAP v7.0.10 (2016-11-28)
+
+#### Notes
+
+This release is mainly about improving reliability. The biggest changes are
+about comparing the local and remote structures of folders.
+
+The Gmail repository type allows to tune some predefined options for advanced
+use cases.
+
+Offlineimap learns where to find the default OpenSUSE certificate.
+
+Some code refactoring and documentation improvements.
+
+#### Authors
+
+- Nicolas Sebrecht (15)
+- Stéphane Albert (4)
+- Abdo Roig-Maranges (2)
+- Xudong Zhang (1)
+- altruizine (1)
+- Ævar Arnfjörð Bjarmason (1)
+
+#### Features
+
+- GMail: Add ability to set a custom host/port/ssl etc.. [Ævar Arnfjörð Bjarmason]
+- Add OpenSUSE to list of supported distros. [altruizine]
+
+#### Fixes
+
+- repository: Base: fix name of the status folder. [Abdo Roig-Maranges]
+- repository: Base: rework the structure folders comparison. [Nicolas Sebrecht]
+- Fix remaining instance of check_uid_validity refactoring. [Abdo Roig-Maranges]
+- Fix the profile mode. [Nicolas Sebrecht]
+- folder: Maildir: actually try to use Delivery-Date if Date is broken. [Nicolas Sebrecht]
+- Fix decodefoldernames not applying in folder sync. [Stéphane Albert]
+- Fix mbnames writing with folders using utf-8. [Stéphane Albert]
+- Fix utf7 decode error not caught. [Stéphane Albert]
+- Fix md5 folder generation wanting unicode. [Stéphane Albert]
+- Fix bug: should not compare list to int. [Xudong Zhang]
+
+#### Changes
+
+- folder: IMAP: display error message before starting next try. [Nicolas Sebrecht]
+- offlineimap.conf: XOAUTH2: certificate validation is required for Gmail. [Nicolas Sebrecht]
+- offlineimap.conf: autorefresh points to maxsyncaccounts. [Nicolas Sebrecht]
+- offlineimap.conf: use 'Offlineimap' to name the software. [Nicolas Sebrecht]
+- offlineimap.conf: add comments for the readonly configuration option. [Nicolas Sebrecht]
+- offlineimap.conf: mbnames: provide sample for the folderfilter option. [Nicolas Sebrecht]
+- Minor code refactoring. [Nicolas Sebrecht]
+- Don't allow negative values for autorefresh. [Nicolas Sebrecht]
+- Manual: add known issues entry about XOAUTH2 "invalid_grant". [Nicolas Sebrecht]
+- repository: Gmail: fix copyright line. [Nicolas Sebrecht]
+
+
+### OfflineIMAP v7.0.9 (2016-10-29)
+
+#### Notes
+
+Let's go for this small but still interesting release.
+
+The Blinkenlights UI got fixed. Reliability for IMAP/IMAP setups is improved.
+
+The sqlite backend now honors the fsync configuration option. This allows
+commits to the database to be postponed. This might be usefull to disable the
+default fsync for some use cases like cache migration from text to sqlite,
+syncing after long away periods and more generally when a lot of new email
+entries must be written to the cache.
+
+Because of this change the old fsync option is marked EXPERIMENTAL. However,
+setups using the plain text cache are not concerned. Bear in mind that disabling
+fsync greatly decreases reliability when resuming from unexpected halts.
+
+Small code cleanups, too.
+
+#### Authors
+
+- Nicolas Sebrecht (4)
+- Giel van Schijndel (1)
+- Ilias Tsitsimpis (1)
+
+#### Features
+
+- SQLite: make postponing transaction committing possible.. [Giel van Schijndel]
+
+#### Fixes
+
+- UIDMaps: ensure we don't update the map file in dry run mode. [Nicolas Sebrecht]
+- UIDMaps: prevent from leaving a truncated map file. [Nicolas Sebrecht]
+- Fix flickering in Blinkenlights UI. [Ilias Tsitsimpis]
+
+#### Changes
+
+- UIDMaps: reorder imports. [Nicolas Sebrecht]
+- folder: IMAP: remove unused import. [Nicolas Sebrecht]
+
+
+
+### OfflineIMAP v7.0.8 (2016-10-08)
+
+#### Notes
+
+Very small release to fix the broken UI relying on Curses. Thanks for the
+contributors!
+
+#### Authors
+
+- Nicolas Sebrecht (4)
+- Ilias Tsitsimpis (1)
+- Stéphane Albert (1)
+
+#### Features
+
+- Introduce contrib/README.md. [Nicolas Sebrecht]
+
+#### Fixes
+
+- Import ui before threadutil to resolve circular dependency. [Ilias Tsitsimpis]
+- Fix implicit call to unicode() from UI functions. [Stéphane Albert]
+
+#### Changes
+
+- imapserver: minor code cleaning: reorder methods. [Nicolas Sebrecht]
+- website-doc.sh: print usage when no argument is given. [Nicolas Sebrecht]
+- Changelog: add remark about singlethreadperfolder in the resume. [Nicolas Sebrecht]
+
+
+
+### OfflineIMAP v7.0.7 (2016-09-21)
+
+#### Notes
+
+With this release, IDLE mode is a bit improved regarding stability. Offlineimap
+learns the default path to the certificate for Gentoo.
+
+The singlethreadperfolder configuration option is marked stable.
+
+There are few improvements for logs and documentation. Minor code refactoring,
+too.
+
+#### Authors
+
+- Nicolas Sebrecht (12)
+- Dan Loewenherz (1)
+- Espen Henriksen (1)
+
+#### Features
+
+- Add gentoo cert path for OS-DEFAULT. [Espen Henriksen]
+- Remove EXPERIMENTAL flag for the singlethreadperfolder configuration option. [Nicolas Sebrecht]
+
+#### Fixes
+
+- Ensure logs are in bytes for PLAIN authentication. [Nicolas Sebrecht]
+- Minor: utils: distro: fix copyright line. [Nicolas Sebrecht]
+- README: minor copy edits. [Dan Loewenherz]
+- IDLE: protect all calls to imapobj.noop() (coonection might be dropped). [Nicolas Sebrecht]
+- XOAUTH2: raise error if string 'error' is in the response. [Nicolas Sebrecht]
+
+#### Changes
+
+- Set singlethreadperfolder configuration option when in idle mode. [Nicolas Sebrecht]
+- repository: IMAP: cache the idle folders in memory. [Nicolas Sebrecht]
+- mbnames: add info output messages in dry run mode. [Nicolas Sebrecht]
+- mbnames: remove non-required argument. [Nicolas Sebrecht]
+- offlineimap.conf: explain hooks in idle mode. [Nicolas Sebrecht]
+- Explain how to submit issues in more files. [Nicolas Sebrecht]
+- README: explain the a2x dependency to build the man page. [Nicolas Sebrecht]
+
+
+
+### OfflineIMAP v7.0.6 (2016-08-21)
+
+#### Notes
+
+Evaluated XOAUTH2 configuration options are fixed. With this release,
+offlineimap can try to keep the UIDs in order.
+
+#### Authors
+
+- Nicolas Sebrecht (10)
+- James E. Blair (2)
+
+#### Features
+
+- Learn singlethreadperfolder configuration option. [James E. Blair]
+- folder: Base: sort message UID list. [James E. Blair]
+
+#### Fixes
+
+- Maildir: add missing exception instance "as e" in except clause. [Nicolas Sebrecht]
+- XOAUTH2: fix evaluated configuration options. [Nicolas Sebrecht]
+
+#### Changes
+
+- XOAUTH2: improve error message while trying to get access token. [Nicolas Sebrecht]
+- Show python version for -V CLI option. [Nicolas Sebrecht]
+- README: link Python 3 version to issues. [Nicolas Sebrecht]
+- offlineimap.conf: add note about Gmail\All Mail keeping the emails while deleted. [Nicolas Sebrecht]
+- release.sh: minor enhancements. [Nicolas Sebrecht]
+
+
+### OfflineIMAP v7.0.5 (2016-08-10)
+
+#### Notes
+
+Bugfix release. The machineui is fixed and the dry-run mode is a bit improved.
+
+Thanks to all the contributors and bug reporters. This release is yours.
+
+#### Authors
+
+- Nicolas Sebrecht (6)
+- Wieland Hoffmann (2)
+- Łukasz Żarnowiecki (2)
+- Christopher League (1)
+
+#### Fixes
+
+- don't delete messages in local cache in dry-run mode. [Nicolas Sebrecht]
+- Fix typo in format string in machineui. [Christopher League]
+
+#### Changes
+
+- folder: IMAP: change raw assert to OfflineImapError. [Nicolas Sebrecht]
+- folder: IMAP: add 'imap' debug output before calling FETCH. [Nicolas Sebrecht]
+- explicitly set __hash__ of Base class to None. [Łukasz Żarnowiecki]
+- imapserver: change lambdas with map to list comprehension. [Łukasz Żarnowiecki]
+- Clarify which settings are required for mbnames. [Wieland Hoffmann]
+- Remove an unused import. [Wieland Hoffmann]
+- folder: Base: minor style fix. [Nicolas Sebrecht]
+- CONTRIBUTING: add link to external page on "How to fix a bug". [Nicolas Sebrecht]
+- README: add link to the official repository on top of the page. [Nicolas Sebrecht]
+
+
+
+### OfflineIMAP v7.0.4 (2016-08-02)
+
+#### Notes
+
+Small bugfix release for Gmail users.
+
+#### Authors
+
+- Nicolas Sebrecht (1)
+
+#### Fixes
+
+- ConfigHelperMixin must be new-style class to not break inheritance. [Nicolas Sebrecht]
+
+
 ### OfflineIMAP v7.0.3 (2016-07-30)
 
 #### Notes

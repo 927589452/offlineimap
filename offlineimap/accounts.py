@@ -33,7 +33,7 @@ FOLDER_NAMESPACE = 'LIMITED_FOLDER_'
 try:
     import fcntl
 except:
-    pass # ok if this fails, we can do without
+    pass # Ok if this fails, we can do without.
 
 # FIXME: spaghetti code alert!
 def getaccountlist(customconfig):
@@ -71,8 +71,15 @@ class Account(CustomConfig.ConfigHelperMixin):
         self.refreshperiod = self.getconffloat('autorefresh', 0.0)
         self.dryrun = self.config.getboolean('general', 'dry-run')
         self.quicknum = 0
+        if self.refreshperiod < 0:
+            self.ui.warn("autorefresh for %s is negative, fixing it to 0."%
+                    name)
+            self.refreshperiod = 0.0
         if self.refreshperiod == 0.0:
             self.refreshperiod = None
+        self.remoterepos = None
+        self.localrepos = None
+        self.statusrepos = None
 
     def getlocaleval(self):
         return self.localeval
@@ -283,7 +290,7 @@ class SyncableAccount(Account):
                 self.ui.error(e, exc_info()[2], msg=
                     "While attempting to sync account '%s'"% self)
             else:
-                # after success sync, reset the looping counter to 3
+                # After success sync, reset the looping counter to 3.
                 if self.refreshperiod:
                     looping = 3
             finally:
@@ -429,7 +436,7 @@ def syncfolder(account, remotefolder, quick):
     Filtered folders on the remote side will not invoke this function. However,
     this might be called in a concurrently."""
 
-    def check_uid_validity(localfolder, remotefolder, statusfolder):
+    def check_uid_validity():
         # If either the local or the status folder has messages and
         # there is a UID validity problem, warn and abort.  If there are
         # no messages, UW IMAPd loses UIDVALIDITY.  But we don't really
@@ -449,17 +456,12 @@ def syncfolder(account, remotefolder, quick):
             localfolder.save_uidvalidity()
             remotefolder.save_uidvalidity()
 
-    def save_min_uid(folder, min_uid):
-        uidfile = folder.get_min_uid_file()
-        fd = open(uidfile, 'wt')
-        fd.write(str(min_uid) + "\n")
-        fd.close()
-
-    def cachemessagelists_upto_date(localfolder, remotefolder, date):
+    def cachemessagelists_upto_date(date):
         """Returns messages with uid > min(uids of messages newer than date)."""
 
+        # Warning: this makes sense only if the cached list is empty.
         localfolder.cachemessagelist(min_date=date)
-        check_uid_validity(localfolder, remotefolder, statusfolder)
+        check_uid_validity()
         # Local messagelist had date restriction applied already. Restrict
         # sync to messages with UIDs >= min_uid from this list.
         #
@@ -511,7 +513,7 @@ def syncfolder(account, remotefolder, quick):
                     min_uid = min(positive_uids)
                 else:
                     min_uid = 1
-                save_min_uid(partial, min_uid)
+                partial.save_min_uid(min_uid)
         else:
             partial.cachemessagelist(min_uid=min_uid)
 
@@ -558,15 +560,16 @@ def syncfolder(account, remotefolder, quick):
             ui.warn("Quick syncs (-q) not supported in conjunction "
                 "with maxage or startdate; ignoring -q.")
         if maxage != None:
-            cachemessagelists_upto_date(localfolder, remotefolder, maxage)
+            cachemessagelists_upto_date(maxage)
+            check_uid_validity()
         elif localstart != None:
             cachemessagelists_startdate(remotefolder, localfolder,
                 localstart)
-            check_uid_validity(localfolder, remotefolder, statusfolder)
+            check_uid_validity()
         elif remotestart != None:
             cachemessagelists_startdate(localfolder, remotefolder,
                 remotestart)
-            check_uid_validity(localfolder, remotefolder, statusfolder)
+            check_uid_validity()
         else:
             localfolder.cachemessagelist()
             if quick:
@@ -575,7 +578,7 @@ def syncfolder(account, remotefolder, quick):
                     ui.skippingfolder(remotefolder)
                     localrepos.restore_atime()
                     return
-            check_uid_validity(localfolder, remotefolder, statusfolder)
+            check_uid_validity()
             remotefolder.cachemessagelist()
 
         # Synchronize remote changes.

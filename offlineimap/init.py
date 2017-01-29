@@ -27,14 +27,21 @@ from optparse import OptionParser
 
 import offlineimap
 import offlineimap.virtual_imaplib2 as imaplib
-from offlineimap import globals, threadutil, accounts, folder, mbnames
+
+# Ensure that `ui` gets loaded before `threadutil` in order to
+# break the circular dependency between `threadutil` and `Curses`.
 from offlineimap.ui import UI_LIST, setglobalui, getglobalui
+from offlineimap import threadutil, accounts, folder, mbnames
+from offlineimap import globals as glob
 from offlineimap.CustomConfig import CustomConfigParser
 from offlineimap.utils import stacktrace
 from offlineimap.repository import Repository
 from offlineimap.folder.IMAP import MSGCOPY_NAMESPACE
 
+
 ACCOUNT_LIMITED_THREAD_NAME = 'MAX_ACCOUNTS'
+PYTHON_VERSION = sys.version.split(' ')[0]
+
 
 def syncitall(list_accounts, config):
     """The target when in multithreading mode for running accounts threads."""
@@ -170,11 +177,13 @@ class OfflineImap(object):
                   help="remove mbnames entries for accounts not in accounts")
 
         (options, args) = parser.parse_args()
-        globals.set_options (options)
+        glob.set_options(options)
 
         if options.version:
-            print("offlineimap v%s, imaplib2 v%s (%s)"% (
-                offlineimap.__version__, imaplib.__version__, imaplib.DESC))
+            print("offlineimap v%s, imaplib2 v%s (%s), Python v%s"% (
+                  offlineimap.__version__, imaplib.__version__, imaplib.DESC,
+                  PYTHON_VERSION)
+            )
             sys.exit(0)
 
         # Read in configuration file.
@@ -212,7 +221,6 @@ class OfflineImap(object):
                              options.profiledir)
             else:
                 os.mkdir(options.profiledir)
-            threadutil.ExitNotifyThread.set_profiledir(options.profiledir)
             # TODO, make use of chosen ui for logging
             logging.warn("Profile mode: Potentially large data will be "
                          "created in '%s'"% options.profiledir)
@@ -408,7 +416,7 @@ class OfflineImap(object):
             if sig == signal.SIGUSR1:
                 # tell each account to stop sleeping
                 accounts.Account.set_abort_event(self.config, 1)
-            elif sig == signal.SIGUSR2:
+            elif sig in (signal.SIGUSR2, signal.SIGABRT):
                 # tell each account to stop looping
                 getglobalui().warn("Terminating after this sync...")
                 accounts.Account.set_abort_event(self.config, 2)
@@ -434,6 +442,7 @@ class OfflineImap(object):
             signal.signal(signal.SIGHUP, sig_handler)
             signal.signal(signal.SIGUSR1, sig_handler)
             signal.signal(signal.SIGUSR2, sig_handler)
+            signal.signal(signal.SIGABRT, sig_handler)
             signal.signal(signal.SIGTERM, sig_handler)
             signal.signal(signal.SIGINT, sig_handler)
             signal.signal(signal.SIGQUIT, sig_handler)
@@ -444,7 +453,7 @@ class OfflineImap(object):
 
             if options.singlethreading:
                 # Singlethreaded.
-                self.__sync_singlethreaded(activeaccounts)
+                self.__sync_singlethreaded(activeaccounts, options.profiledir)
             else:
                 # Multithreaded.
                 t = threadutil.ExitNotifyThread(
@@ -468,15 +477,32 @@ class OfflineImap(object):
             self.ui.terminate()
             return 1
 
-    def __sync_singlethreaded(self, list_accounts):
+    def __sync_singlethreaded(self, list_accounts, profiledir):
         """Executed in singlethreaded mode only.
 
         :param accs: A list of accounts that should be synced
         """
         for accountname in list_accounts:
             account = accounts.SyncableAccount(self.config, accountname)
-            threading.currentThread().name = "Account sync %s"% account.name
-            account.syncrunner()
+            threading.currentThread().name = \
+                    "Account sync %s"% account.getname()
+            if not profiledir:
+                account.syncrunner()
+            # Profile mode.
+            else:
+                try:
+                    import cProfile as profile
+                except ImportError:
+                    import profile
+                prof = profile.Profile()
+                try:
+                    prof = prof.runctx("account.syncrunner()", globals(), locals())
+                except SystemExit:
+                    pass
+                from datetime import datetime
+                dt = datetime.now().strftime('%Y%m%d%H%M%S')
+                prof.dump_stats(os.path.join(
+                    profiledir, "%s_%s.prof"% (dt, account.getname())))
 
     def __serverdiagnostics(self, options):
         self.ui.info("  imaplib2: %s (%s)"% (imaplib.__version__, imaplib.DESC))
